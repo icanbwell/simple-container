@@ -26,24 +26,19 @@ class Inject[T]:
 
         except RequestScopeNotActiveError as e:
             # Special handling for request scope errors
-            raise HTTPException(
-                status_code=500,
-                detail={
-                    "error": "Request scope not configured",
-                    "service": self.service_type.__name__,
-                    "message": str(e),
-                    "hint": "Add RequestScopeMiddleware to your FastAPI app",
-                },
-            )
+            raise RuntimeError(
+                "Request scope not configured for "
+                f"{self.service_type.__name__}: {e}. "
+                "Add RequestScopeMiddleware to your FastAPI app"
+            ) from e
 
         except ServiceNotFoundError as e:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Service {self.service_type.__name__} not registered: {str(e)}",
-            )
+            raise RuntimeError(
+                f"Service {self.service_type.__name__} not registered: {e}"
+            ) from e
 
         except ContainerError as e:
-            raise HTTPException(status_code=500, detail=f"Container error: {str(e)}")
+            raise RuntimeError(f"Container error: {e}") from e
 
     @override
     def __repr__(self) -> str:
