@@ -1,0 +1,13 @@
+version: '3.5'
+services:
+  dev:
+    user: root
+    build:
+      dockerfile: Dockerfile
+      context: .
+    volumes:
+      - ./:/usr/src/simple_container
+    container_name: simple_container_dev
+    working_dir: /usr/src/simple_container
+    env_file:
+      - docker.env
