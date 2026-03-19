@@ -19,13 +19,12 @@ class ContainerRegistry:
     def set_default(cls, container: IContainer) -> None:
         """Set the default container."""
         with cls._lock:
-            cls._default_container = container
-            if cls._current_container is None:
-                cls._current_container = container
-            else:
+            if cls._current_container is not None:
                 raise RuntimeError(
                     f"There is already a current container set: {cls._current_container.container_source}.  Use override() to change it temporarily."
                 )
+            cls._default_container = container
+            cls._current_container = container
 
     @classmethod
     def get_current(cls) -> IContainer:
