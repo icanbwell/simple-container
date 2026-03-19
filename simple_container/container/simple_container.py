@@ -270,6 +270,14 @@ class SimpleContainer(IContainer):
         # Wrap mutations + instance invalidation under lock to avoid races with resolve() fast path
         with SimpleContainer._singleton_lock:
             self._factories[service_type] = factory
+            # If previously registered as request-scoped, update scope to singleton explicitly
+            if service_type in self._request_scoped_types:
+                self._request_scoped_types.discard(service_type)
+                logger.warning(
+                    "Service '%s' was previously registered as request-scoped; "
+                    "updating registration to singleton scope.",
+                    _safe_type_name(service_type),
+                )
             self._singleton_types.add(service_type)
             # clear any cached singleton instance to allow re-registration
             if service_type in SimpleContainer._singletons:
@@ -312,6 +320,13 @@ class SimpleContainer(IContainer):
         """
         if not callable(factory):
             raise ValueError(f"Factory for {service_type} must be callable")
+
+        # Disallow conflicting scope registrations with existing singleton services
+        if service_type in self._singleton_types or service_type in SimpleContainer._singletons:
+            raise ContainerError(
+                f"Service '{_safe_type_name(service_type)}' is already registered as a singleton "
+                "and cannot be re-registered as request-scoped."
+            )
 
         self._factories[service_type] = factory
         self._request_scoped_types.add(service_type)
