@@ -319,9 +319,9 @@ class SimpleContainer(IContainer):
             _safe_type_name(service_type),
         )
 
-        # NEW: Optional warning if no request scope is active during registration
+        # NEW: Optional debug log if no request scope is active during registration
         if not self.is_request_scope_active():
-            logger.warning(
+            logger.debug(
                 "Registered request-scoped service '%s' but no request scope is currently active. "
                 "Ensure RequestScopeMiddleware is installed before handling requests.",
                 _safe_type_name(service_type),
