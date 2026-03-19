@@ -14,6 +14,10 @@ from simple_container.utilities.logger.log_levels import SRC_LOG_LEVELS
 logger = logging.getLogger(__name__)
 logger.setLevel(SRC_LOG_LEVELS["INITIALIZATION"])
 
+# Stack of active request IDs per context to support nested request scopes.
+# Implemented as an immutable tuple to avoid shared mutable defaults.
+_request_id_stack: ContextVar[tuple[str, ...]] = ContextVar("_request_id_stack", default=())
+
 
 def _safe_type_name(t: Any) -> str:
     """Return a readable name for a type or object."""
@@ -354,7 +358,7 @@ class SimpleContainer(IContainer):
         if request_id is None:
             request_id = str(uuid4())
 
-        # NEW: Check if a request scope is already active
+        # Check if a request scope is already active
         existing_request_id = _current_request_id.get()
         if existing_request_id is not None:
             logger.warning(
@@ -371,7 +375,10 @@ class SimpleContainer(IContainer):
             all_storage = {}
             _request_scope_storage.set(all_storage)
 
-        # Set current request ID
+        # Push the new request ID onto the per-context stack and set it as current
+        current_stack = _request_id_stack.get(())
+        new_stack = current_stack + (request_id,)
+        _request_id_stack.set(new_stack)
         _current_request_id.set(request_id)
 
         # Initialize storage for this request
@@ -402,7 +409,7 @@ class SimpleContainer(IContainer):
         """
         request_id = _current_request_id.get()
         if request_id is None:
-            # CHANGED: More detailed warning message
+            # More detailed warning message
             logger.warning(
                 "Attempted to end request scope but no request scope is active. "
                 "This may indicate a missing begin_request_scope() call or "
@@ -424,15 +431,27 @@ class SimpleContainer(IContainer):
                 len(all_storage),
             )
         else:
-            # NEW: Warning if storage not found
+            # Warning if storage not found
             logger.warning(
                 "Ending request scope (request_id=%s...) but no storage found. "
                 "This may indicate the request scope was already cleaned up.",
                 request_id[:8],
             )
 
-        # Clear current request ID
-        _current_request_id.set(None)
+        # Pop this request ID from the per-context stack and restore the previous one
+        current_stack = _request_id_stack.get(())
+        if current_stack and current_stack[-1] == request_id:
+            new_stack = current_stack[:-1]
+        else:
+            new_stack = current_stack
+            logger.warning(
+                "Request scope stack out of sync when ending request scope (request_id=%s...).",
+                request_id[:8],
+            )
+        _request_id_stack.set(new_stack)
+
+        previous_request_id = new_stack[-1] if new_stack else None
+        _current_request_id.set(previous_request_id)
 
     @staticmethod
     def get_current_request_id() -> str | None:
