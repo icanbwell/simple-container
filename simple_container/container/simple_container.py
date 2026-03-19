@@ -14,11 +14,7 @@ from simple_container.utilities.logger.log_levels import SRC_LOG_LEVELS
 logger = logging.getLogger(__name__)
 logger.setLevel(SRC_LOG_LEVELS["INITIALIZATION"])
 
-# Stack of active request IDs per context to support nested request scopes.
-# Implemented as an immutable tuple to avoid shared mutable defaults.
-_request_id_stack: ContextVar[tuple[str, ...]] = ContextVar(
-    "_request_id_stack", default=()
-)
+# Request scopes are modeled as single-active per context (no nested restoration).
 
 
 def _safe_type_name(t: Any) -> str:
@@ -388,6 +384,13 @@ class SimpleContainer(IContainer):
                 request_id[:8],
                 existing_request_id[:8],
             )
+            # Replace the existing scope with a new one to keep lifecycle predictable.
+            all_storage_for_existing = _request_scope_storage.get(None)
+            if (
+                all_storage_for_existing is not None
+                and existing_request_id in all_storage_for_existing
+            ):
+                del all_storage_for_existing[existing_request_id]
 
         # Initialize storage if needed
         all_storage = _request_scope_storage.get(None)
@@ -395,10 +398,6 @@ class SimpleContainer(IContainer):
             all_storage = {}
             _request_scope_storage.set(all_storage)
 
-        # Push the new request ID onto the per-context stack and set it as current
-        current_stack = _request_id_stack.get(())
-        new_stack = current_stack + (request_id,)
-        _request_id_stack.set(new_stack)
         _current_request_id.set(request_id)
 
         # Initialize storage for this request
@@ -458,20 +457,8 @@ class SimpleContainer(IContainer):
                 request_id[:8],
             )
 
-        # Pop this request ID from the per-context stack and restore the previous one
-        current_stack = _request_id_stack.get(())
-        if current_stack and current_stack[-1] == request_id:
-            new_stack = current_stack[:-1]
-        else:
-            new_stack = current_stack
-            logger.warning(
-                "Request scope stack out of sync when ending request scope (request_id=%s...).",
-                request_id[:8],
-            )
-        _request_id_stack.set(new_stack)
-
-        previous_request_id = new_stack[-1] if new_stack else None
-        _current_request_id.set(previous_request_id)
+        # Scope lifecycle is single-active; ending always clears active request id.
+        _current_request_id.set(None)
 
     @staticmethod
     def get_current_request_id() -> str | None:
