@@ -31,7 +31,7 @@ def fix_setuptools() -> None:
 
         # noinspection PyUnusedLocal
         def violation(operation: Any, *args: Any, **_: Any) -> None:
-            print("SandboxViolation: %s" % (args,))
+            pass
 
         DirectorySandbox._violation = violation
     except ImportError:
