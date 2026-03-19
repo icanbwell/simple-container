@@ -16,7 +16,9 @@ logger.setLevel(SRC_LOG_LEVELS["INITIALIZATION"])
 
 # Stack of active request IDs per context to support nested request scopes.
 # Implemented as an immutable tuple to avoid shared mutable defaults.
-_request_id_stack: ContextVar[tuple[str, ...]] = ContextVar("_request_id_stack", default=())
+_request_id_stack: ContextVar[tuple[str, ...]] = ContextVar(
+    "_request_id_stack", default=()
+)
 
 
 def _safe_type_name(t: Any) -> str:
@@ -322,7 +324,10 @@ class SimpleContainer(IContainer):
             raise ValueError(f"Factory for {service_type} must be callable")
 
         # Disallow conflicting scope registrations with existing singleton services
-        if service_type in self._singleton_types or service_type in SimpleContainer._singletons:
+        if (
+            service_type in self._singleton_types
+            or service_type in SimpleContainer._singletons
+        ):
             raise ContainerError(
                 f"Service '{_safe_type_name(service_type)}' is already registered as a singleton "
                 "and cannot be re-registered as request-scoped."
